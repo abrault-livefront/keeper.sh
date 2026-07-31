@@ -140,27 +140,6 @@ function DashboardSidebar() {
 
         <NavItem to="/dashboard/settings" icon={<Settings size={15} />} label="Settings" />
       </nav>
-
-      {/* User + logout */}
-      <div className="px-3 pb-4">
-        <div className="flex items-center gap-2.5 px-3 py-2 mb-0.5">
-          <div className="size-7 rounded-lg bg-[#1a6fc4] flex items-center justify-center text-white font-semibold text-[12px] shrink-0">
-            {initial}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[13px] font-medium text-white/80 truncate">{username}</div>
-            <div className="text-[11px] text-white/30">Free plan</div>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="w-full flex items-center gap-2.5 px-3 py-[7px] rounded-lg text-[13px] font-medium text-white/40 hover:text-white/70 hover:bg-white/[0.05] transition-colors"
-        >
-          <LogOut size={15} />
-          Logout
-        </button>
-      </div>
     </aside>
   );
 }
