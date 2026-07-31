@@ -1,0 +1,2002 @@
+openapi: 3.1.0
+info:
+  title: keeper.sh API
+  description: |
+    The keeper.sh API. Internal session-authenticated endpoints are used by the
+    web dashboard. The public v1 API (`/api/v1/**`) uses Bearer token
+    authentication via API tokens created at `POST /api/tokens`.
+  version: 1.0.0
+
+servers:
+  - url: https://keeper.sh
+
+components:
+  securitySchemes:
+    sessionAuth:
+      type: apiKey
+      in: cookie
+      name: keeper-session
+      description: Session cookie set by Better Auth after sign-in.
+    bearerToken:
+      type: http
+      scheme: bearer
+      description: API token created via `POST /api/tokens`.
+
+  schemas:
+    # -------------------------------------------------------------------------
+    # Core domain types
+    # -------------------------------------------------------------------------
+    KeeperSource:
+      type: object
+      required:
+        - id
+        - name
+        - calendarType
+        - capabilities
+        - accountId
+        - provider
+        - accountIdentifier
+        - needsReauthentication
+        - includeInIcalFeed
+        - providerName
+        - accountLabel
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        calendarType:
+          type: string
+        capabilities:
+          type: array
+          items:
+            type: string
+        accountId:
+          type: string
+        provider:
+          type: string
+        displayName:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        accountIdentifier:
+          type: string
+        needsReauthentication:
+          type: boolean
+        includeInIcalFeed:
+          type: boolean
+        providerName:
+          type: string
+        providerIcon:
+          type: string
+          nullable: true
+        accountLabel:
+          type: string
+
+    KeeperDestination:
+      type: object
+      required:
+        - id
+        - provider
+        - needsReauthentication
+      properties:
+        id:
+          type: string
+        provider:
+          type: string
+        email:
+          type: string
+          nullable: true
+        needsReauthentication:
+          type: boolean
+
+    KeeperMapping:
+      type: object
+      required:
+        - id
+        - sourceCalendarId
+        - destinationCalendarId
+        - createdAt
+        - calendarType
+      properties:
+        id:
+          type: string
+        sourceCalendarId:
+          type: string
+        destinationCalendarId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        calendarType:
+          type: string
+
+    KeeperEvent:
+      type: object
+      required:
+        - id
+        - startTime
+        - endTime
+        - calendarId
+        - calendarName
+        - calendarProvider
+      properties:
+        id:
+          type: string
+        eventStateId:
+          type: string
+          nullable: true
+          description: Persisted event_states UUID for synced events; null for user-created events.
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        title:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        location:
+          type: string
+          nullable: true
+        calendarId:
+          type: string
+        calendarName:
+          type: string
+        calendarProvider:
+          type: string
+        calendarUrl:
+          type: string
+          nullable: true
+
+    KeeperSyncStatus:
+      type: object
+      required:
+        - calendarId
+        - inSync
+        - localEventCount
+        - remoteEventCount
+      properties:
+        calendarId:
+          type: string
+        inSync:
+          type: boolean
+        lastSyncedAt:
+          type: string
+          format: date-time
+          nullable: true
+        localEventCount:
+          type: integer
+        remoteEventCount:
+          type: integer
+
+    PendingInvite:
+      type: object
+      required:
+        - sourceEventUid
+        - startTime
+        - endTime
+        - isAllDay
+        - calendarId
+        - provider
+      properties:
+        sourceEventUid:
+          type: string
+        title:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        location:
+          type: string
+          nullable: true
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        isAllDay:
+          type: boolean
+        organizer:
+          type: string
+          nullable: true
+        calendarId:
+          type: string
+        provider:
+          type: string
+
+    Entitlements:
+      type: object
+      required:
+        - accountCount
+        - accountLimit
+        - mappingCount
+        - mappingLimit
+        - plan
+        - canUseEventFilters
+        - canCustomizeIcalFeed
+      properties:
+        accountCount:
+          type: integer
+        accountLimit:
+          type: integer
+        mappingCount:
+          type: integer
+        mappingLimit:
+          type: integer
+        plan:
+          type: string
+          enum: [free, pro]
+        canUseEventFilters:
+          type: boolean
+        canCustomizeIcalFeed:
+          type: boolean
+
+    IcalSettings:
+      type: object
+      required:
+        - includeEventName
+        - includeEventDescription
+        - includeEventLocation
+        - excludeAllDayEvents
+        - customEventName
+      properties:
+        includeEventName:
+          type: boolean
+        includeEventDescription:
+          type: boolean
+        includeEventLocation:
+          type: boolean
+        excludeAllDayEvents:
+          type: boolean
+        customEventName:
+          type: string
+
+    ApiToken:
+      type: object
+      required:
+        - id
+        - name
+        - prefix
+        - createdAt
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        prefix:
+          type: string
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+
+    Success:
+      type: object
+      required:
+        - success
+      properties:
+        success:
+          type: boolean
+
+paths:
+  # ---------------------------------------------------------------------------
+  # Health
+  # ---------------------------------------------------------------------------
+  /api/health:
+    get:
+      operationId: getHealth
+      summary: Health check
+      tags: [Health]
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, timestamp]
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  # ---------------------------------------------------------------------------
+  # Entitlements
+  # ---------------------------------------------------------------------------
+  /api/entitlements:
+    get:
+      operationId: getEntitlements
+      summary: Get user entitlements
+      description: Returns the authenticated user's plan limits and feature flags.
+      tags: [Entitlements]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: User entitlements
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Entitlements"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ---------------------------------------------------------------------------
+  # Accounts
+  # ---------------------------------------------------------------------------
+  /api/accounts:
+    get:
+      operationId: listAccounts
+      summary: List calendar accounts
+      tags: [Accounts]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: List of calendar accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    provider:
+                      type: string
+                    displayName:
+                      type: string
+                      nullable: true
+                    email:
+                      type: string
+                      nullable: true
+                    authType:
+                      type: string
+                    needsReauthentication:
+                      type: boolean
+                    calendarCount:
+                      type: integer
+        "401":
+          description: Unauthorized
+
+  /api/accounts/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getAccount
+      summary: Get a calendar account
+      tags: [Accounts]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: Calendar account
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteAccount
+      summary: Delete a calendar account
+      tags: [Accounts]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: Account deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
+  # ---------------------------------------------------------------------------
+  # Sources
+  # ---------------------------------------------------------------------------
+  /api/sources:
+    get:
+      operationId: listSources
+      summary: List all sources
+      tags: [Sources]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: List of sources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/KeeperSource"
+        "401":
+          description: Unauthorized
+
+  /api/sources/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getSource
+      summary: Get a source
+      tags: [Sources]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: Source details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KeeperSource"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+    patch:
+      operationId: updateSource
+      summary: Update a source
+      description: Pro plan required for event filter fields.
+      tags: [Sources]
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                customEventName:
+                  type: string
+                excludeAllDayEvents:
+                  type: boolean
+                excludeEventDescription:
+                  type: boolean
+                excludeEventLocation:
+                  type: boolean
+                excludeEventName:
+                  type: boolean
+                excludeFocusTime:
+                  type: boolean
+                excludeOutOfOffice:
+                  type: boolean
+                includeInIcalFeed:
+                  type: boolean
+                treatFullDayTimedEventsAsAllDay:
+                  type: boolean
+      responses:
+        "200":
+          description: Source updated
+        "401":
+          description: Unauthorized
+        "402":
+          description: Plan upgrade required
+        "404":
+          description: Not found
+
+  /api/sources/{id}/destinations:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getSourceDestinations
+      summary: Get destination IDs for a source
+      tags: [Sources]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: Destination IDs
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [destinationIds]
+                properties:
+                  destinationIds:
+                    type: array
+                    items:
+                      type: string
+        "401":
+          description: Unauthorized
+    put:
+      operationId: setSourceDestinations
+      summary: Set destinations for a source
+      tags: [Sources]
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [calendarIds]
+              properties:
+                calendarIds:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Destinations updated
+        "401":
+          description: Unauthorized
+
+  /api/sources/{id}/sources:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getDestinationSources
+      summary: Get source IDs mapped to a destination
+      tags: [Sources]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: Source IDs
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sourceIds]
+                properties:
+                  sourceIds:
+                    type: array
+                    items:
+                      type: string
+        "401":
+          description: Unauthorized
+    put:
+      operationId: setDestinationSources
+      summary: Set sources for a destination
+      tags: [Sources]
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [calendarIds]
+              properties:
+                calendarIds:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Sources updated
+        "401":
+          description: Unauthorized
+
+  /api/sources/authorize:
+    get:
+      operationId: authorizeSource
+      summary: Initiate OAuth for a source provider
+      tags: [Sources]
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: provider
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [google, outlook]
+        - name: credentialId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to provider authorization URL
+        "401":
+          description: Unauthorized
+
+  /api/sources/callback/{provider}:
+    get:
+      operationId: sourceOAuthCallback
+      summary: OAuth callback for source providers
+      tags: [Sources]
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: error
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to dashboard after handling the OAuth callback
+
+  /api/sources/callback-state:
+    get:
+      operationId: getCallbackState
+      summary: Consume a one-time callback state token
+      tags: [Sources]
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Stored state payload
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Unauthorized
+
+  # ---------------------------------------------------------------------------
+  # Sources — Google
+  # ---------------------------------------------------------------------------
+  /api/sources/google:
+    get:
+      operationId: listGoogleSources
+      summary: List Google Calendar sources
+      tags: [Sources - Google]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: List of Google sources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/KeeperSource"
+        "401":
+          description: Unauthorized
+    post:
+      operationId: createGoogleSource
+      summary: Create a Google Calendar source
+      tags: [Sources - Google]
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [externalCalendarId, name]
+              properties:
+                externalCalendarId:
+                  type: string
+                name:
+                  type: string
+                oauthSourceCredentialId:
+                  type: string
+                syncFocusTime:
+                  type: boolean
+                syncOutOfOffice:
+                  type: boolean
+      responses:
+        "201":
+          description: Source created
+        "401":
+          description: Unauthorized
+        "402":
+          description: Plan limit reached
+        "409":
+          description: Duplicate source
+
+  /api/sources/google/calendars:
+    get:
+      operationId: listGoogleCalendars
+      summary: List available Google Calendars for a credential or destination
+      tags: [Sources - Google]
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: destinationId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: credentialId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Available calendars
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        "401":
+          description: Unauthorized
+
+  /api/sources/google/{id}/destinations:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getGoogleSourceDestinations
+      summary: Get destination IDs for a Google source
+      tags: [Sources - Google]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: Destination IDs
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [destinationIds]
+                properties:
+                  destinationIds:
+                    type: array
+                    items:
+                      type: string
+        "401":
+          description: Unauthorized
+
+  # ---------------------------------------------------------------------------
+  # Sources — Outlook
+  # ---------------------------------------------------------------------------
+  /api/sources/outlook:
+    get:
+      operationId: listOutlookSources
+      summary: List Outlook Calendar sources
+      tags: [Sources - Outlook]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: List of Outlook sources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/KeeperSource"
+        "401":
+          description: Unauthorized
+    post:
+      operationId: createOutlookSource
+      summary: Create an Outlook Calendar source
+      tags: [Sources - Outlook]
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [externalCalendarId, name]
+              properties:
+                externalCalendarId:
+                  type: string
+                name:
+                  type: string
+                oauthSourceCredentialId:
+                  type: string
+      responses:
+        "201":
+          description: Source created
+        "401":
+          description: Unauthorized
+        "402":
+          description: Plan limit reached
+        "409":
+          description: Duplicate source
+
+  /api/sources/outlook/calendars:
+    get:
+      operationId: listOutlookCalendars
+      summary: List available Outlook Calendars for a credential or destination
+      tags: [Sources - Outlook]
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: destinationId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: credentialId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Available calendars
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        "401":
+          description: Unauthorized
+
+  /api/sources/outlook/{id}/destinations:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getOutlookSourceDestinations
+      summary: Get destination IDs for an Outlook source
+      tags: [Sources - Outlook]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: Destination IDs
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [destinationIds]
+                properties:
+                  destinationIds:
+                    type: array
+                    items:
+                      type: string
+        "401":
+          description: Unauthorized
+
+  # ---------------------------------------------------------------------------
+  # Sources — CalDAV
+  # ---------------------------------------------------------------------------
+  /api/sources/caldav:
+    get:
+      operationId: listCalDAVSources
+      summary: List CalDAV sources
+      tags: [Sources - CalDAV]
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: provider
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of CalDAV sources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/KeeperSource"
+        "401":
+          description: Unauthorized
+    post:
+      operationId: createCalDAVSource
+      summary: Create a CalDAV source
+      tags: [Sources - CalDAV]
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [serverUrl, username, password, provider]
+              properties:
+                serverUrl:
+                  type: string
+                username:
+                  type: string
+                password:
+                  type: string
+                provider:
+                  type: string
+      responses:
+        "201":
+          description: Source created
+        "401":
+          description: Unauthorized
+        "402":
+          description: Plan limit reached
+        "409":
+          description: Duplicate source
+
+  /api/sources/caldav/discover:
+    post:
+      operationId: discoverCalDAVSourceCalendars
+      summary: Discover CalDAV calendars on a server
+      tags: [Sources - CalDAV]
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [serverUrl, username, password]
+              properties:
+                serverUrl:
+                  type: string
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Discovered calendars
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  calendars:
+                    type: array
+                    items:
+                      type: object
+                  authMethod:
+                    type: string
+        "401":
+          description: Unauthorized
+
+  # ---------------------------------------------------------------------------
+  # ICS Sources
+  # ---------------------------------------------------------------------------
+  /api/ics:
+    get:
+      operationId: listIcsSources
+      summary: List ICS URL sources
+      tags: [ICS Sources]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: List of ICS sources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        "401":
+          description: Unauthorized
+    post:
+      operationId: createIcsSource
+      summary: Create an ICS URL source
+      tags: [ICS Sources]
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, url]
+              properties:
+                name:
+                  type: string
+                url:
+                  type: string
+      responses:
+        "201":
+          description: ICS source created
+        "401":
+          description: Unauthorized
+        "402":
+          description: Plan limit reached
+
+  /api/ics/{id}/destinations:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getIcsSourceDestinations
+      summary: Get destination IDs for an ICS source
+      tags: [ICS Sources]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: Destination IDs
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [destinationIds]
+                properties:
+                  destinationIds:
+                    type: array
+                    items:
+                      type: string
+        "401":
+          description: Unauthorized
+
+  # ---------------------------------------------------------------------------
+  # Destinations
+  # ---------------------------------------------------------------------------
+  /api/destinations:
+    get:
+      operationId: listDestinations
+      summary: List destinations
+      tags: [Destinations]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: List of destinations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/KeeperDestination"
+        "401":
+          description: Unauthorized
+
+  /api/destinations/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    delete:
+      operationId: deleteDestination
+      summary: Delete a destination
+      tags: [Destinations]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: Destination deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
+  /api/destinations/authorize:
+    get:
+      operationId: authorizeDestination
+      summary: Initiate OAuth for a destination provider
+      tags: [Destinations]
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: provider
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [google, outlook]
+        - name: destinationId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to provider authorization URL
+        "401":
+          description: Unauthorized
+        "402":
+          description: Account limit reached
+
+  /api/destinations/callback/{provider}:
+    get:
+      operationId: destinationOAuthCallback
+      summary: OAuth callback for destination providers
+      tags: [Destinations]
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: error
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to dashboard after handling the OAuth callback
+
+  /api/destinations/caldav:
+    post:
+      operationId: createCalDAVDestination
+      summary: Connect a CalDAV destination
+      tags: [Destinations - CalDAV]
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [serverUrl, username, password, calendarUrl]
+              properties:
+                serverUrl:
+                  type: string
+                username:
+                  type: string
+                password:
+                  type: string
+                calendarUrl:
+                  type: string
+                provider:
+                  type: string
+      responses:
+        "201":
+          description: CalDAV destination connected
+        "401":
+          description: Unauthorized
+        "402":
+          description: Plan limit reached
+
+  /api/destinations/caldav/discover:
+    post:
+      operationId: discoverCalDAVDestinationCalendars
+      summary: Discover CalDAV calendars for a destination server
+      tags: [Destinations - CalDAV]
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [serverUrl, username, password]
+              properties:
+                serverUrl:
+                  type: string
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Discovered calendars
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  calendars:
+                    type: array
+                    items:
+                      type: object
+                  authMethod:
+                    type: string
+        "401":
+          description: Unauthorized
+
+  # ---------------------------------------------------------------------------
+  # Mappings
+  # ---------------------------------------------------------------------------
+  /api/mappings:
+    get:
+      operationId: listMappings
+      summary: List source→destination mappings
+      tags: [Mappings]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: List of mappings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/KeeperMapping"
+        "401":
+          description: Unauthorized
+
+  # ---------------------------------------------------------------------------
+  # Events (Internal)
+  # ---------------------------------------------------------------------------
+  /api/events:
+    get:
+      operationId: listEvents
+      summary: List events in a date range
+      tags: [Events]
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Events in range
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/KeeperEvent"
+        "401":
+          description: Unauthorized
+
+  /api/events/count:
+    get:
+      operationId: getEventCount
+      summary: Get total event count
+      tags: [Events]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: Event count
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [count]
+                properties:
+                  count:
+                    type: integer
+        "401":
+          description: Unauthorized
+
+  # ---------------------------------------------------------------------------
+  # Sync Status
+  # ---------------------------------------------------------------------------
+  /api/sync/status:
+    get:
+      operationId: getSyncStatus
+      summary: Get sync status for all destinations
+      tags: [Sync]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: Sync statuses
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [destinations]
+                properties:
+                  destinations:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/KeeperSyncStatus"
+        "401":
+          description: Unauthorized
+
+  # ---------------------------------------------------------------------------
+  # iCal Feed
+  # ---------------------------------------------------------------------------
+  /api/ical/token:
+    get:
+      operationId: getIcalToken
+      summary: Get iCal feed token and URL
+      tags: [iCal Feed]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: iCal token and feed URL
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token, icalUrl]
+                properties:
+                  token:
+                    type: string
+                  icalUrl:
+                    type: string
+
+  /api/ical/settings:
+    get:
+      operationId: getIcalSettings
+      summary: Get iCal feed display settings
+      tags: [iCal Feed]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: iCal feed settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IcalSettings"
+        "401":
+          description: Unauthorized
+    patch:
+      operationId: updateIcalSettings
+      summary: Update iCal feed display settings
+      description: Pro plan required.
+      tags: [iCal Feed]
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                includeEventName:
+                  type: boolean
+                includeEventDescription:
+                  type: boolean
+                includeEventLocation:
+                  type: boolean
+                excludeAllDayEvents:
+                  type: boolean
+                customEventName:
+                  type: string
+      responses:
+        "200":
+          description: Settings updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IcalSettings"
+        "401":
+          description: Unauthorized
+        "402":
+          description: Pro plan required
+
+  /api/cal/{identifier}.ics:
+    get:
+      operationId: getIcalFeed
+      summary: Get public iCal feed
+      description: Serves the public iCal feed. The token is embedded in the identifier — no authentication cookie required.
+      tags: [iCal Feed]
+      parameters:
+        - name: identifier
+          in: path
+          required: true
+          schema:
+            type: string
+            description: Token-based identifier ending in `.ics`
+      responses:
+        "200":
+          description: iCalendar feed
+          content:
+            text/calendar:
+              schema:
+                type: string
+        "404":
+          description: Feed not found
+
+  # ---------------------------------------------------------------------------
+  # API Tokens
+  # ---------------------------------------------------------------------------
+  /api/tokens:
+    get:
+      operationId: listApiTokens
+      summary: List API tokens
+      tags: [API Tokens]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: List of API tokens
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ApiToken"
+        "401":
+          description: Unauthorized
+    post:
+      operationId: createApiToken
+      summary: Create an API token
+      description: The raw token value is returned only once in this response and is never stored.
+      tags: [API Tokens]
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        "201":
+          description: Token created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, name, tokenPrefix, createdAt, token]
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  tokenPrefix:
+                    type: string
+                  createdAt:
+                    type: string
+                    format: date-time
+                  token:
+                    type: string
+                    description: The full token value. Shown only once — store it securely.
+        "401":
+          description: Unauthorized
+
+  /api/tokens/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    delete:
+      operationId: deleteApiToken
+      summary: Delete an API token
+      tags: [API Tokens]
+      security:
+        - sessionAuth: []
+      responses:
+        "204":
+          description: Token deleted
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
+  # ---------------------------------------------------------------------------
+  # WebSocket / Socket
+  # ---------------------------------------------------------------------------
+  /api/socket/token:
+    get:
+      operationId: getSocketToken
+      summary: Get a short-lived WebSocket auth token
+      tags: [WebSocket]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: Socket token
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token]
+                properties:
+                  token:
+                    type: string
+        "401":
+          description: Unauthorized
+
+  /api/socket/url:
+    get:
+      operationId: getSocketUrl
+      summary: Get the WebSocket connection URL
+      tags: [WebSocket]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: WebSocket URL or path
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  socketUrl:
+                    type: string
+                  socketPath:
+                    type: string
+
+  # ---------------------------------------------------------------------------
+  # Feedback
+  # ---------------------------------------------------------------------------
+  /api/feedback:
+    post:
+      operationId: submitFeedback
+      summary: Submit user feedback
+      tags: [Feedback]
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message, type]
+              properties:
+                message:
+                  type: string
+                type:
+                  type: string
+                  enum: [feedback, report]
+                wantsFollowUp:
+                  type: boolean
+      responses:
+        "200":
+          description: Feedback submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "401":
+          description: Unauthorized
+
+  # ---------------------------------------------------------------------------
+  # Webhooks
+  # ---------------------------------------------------------------------------
+  /api/webhook/polar:
+    post:
+      operationId: polarWebhook
+      summary: Polar.sh subscription webhook
+      description: Receives subscription lifecycle events from Polar.sh. Validated via HMAC signature.
+      tags: [Webhooks]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Polar.sh webhook payload
+      responses:
+        "200":
+          description: Webhook processed
+        "400":
+          description: Invalid signature or payload
+
+  # ---------------------------------------------------------------------------
+  # Public API v1
+  # ---------------------------------------------------------------------------
+  /api/v1/accounts:
+    get:
+      operationId: v1ListAccounts
+      summary: List calendar accounts
+      tags: [v1 - Accounts]
+      security:
+        - bearerToken: []
+      parameters:
+        - name: provider
+          in: query
+          required: false
+          description: Comma-separated list of providers to filter by
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        "401":
+          description: Unauthorized
+
+  /api/v1/calendars:
+    get:
+      operationId: v1ListCalendars
+      summary: List source calendars
+      tags: [v1 - Calendars]
+      security:
+        - bearerToken: []
+      parameters:
+        - name: provider
+          in: query
+          required: false
+          description: Comma-separated list of providers to filter by
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of calendars
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    name:
+                      type: string
+                    provider:
+                      type: string
+                    account:
+                      type: object
+        "401":
+          description: Unauthorized
+
+  /api/v1/calendars/{calendarId}/invites:
+    parameters:
+      - name: calendarId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: v1GetCalendarInvites
+      summary: Get pending calendar invites
+      tags: [v1 - Calendars]
+      security:
+        - bearerToken: []
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Pending invites
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PendingInvite"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Calendar not found
+
+  /api/v1/events:
+    get:
+      operationId: v1ListEvents
+      summary: List events in a date range
+      tags: [v1 - Events]
+      security:
+        - bearerToken: []
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: calendarId
+          in: query
+          required: false
+          description: Comma-separated list of calendar IDs to filter by
+          schema:
+            type: string
+        - name: availability
+          in: query
+          required: false
+          description: Comma-separated availability values to filter by
+          schema:
+            type: string
+        - name: isAllDay
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: count
+          in: query
+          required: false
+          description: When `true`, returns a count object instead of event list
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Events or count
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: array
+                    items:
+                      $ref: "#/components/schemas/KeeperEvent"
+                  - type: object
+                    required: [count]
+                    properties:
+                      count:
+                        type: integer
+        "401":
+          description: Unauthorized
+    post:
+      operationId: v1CreateEvent
+      summary: Create a calendar event
+      tags: [v1 - Events]
+      security:
+        - bearerToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [calendarId, title, startTime, endTime]
+              properties:
+                calendarId:
+                  type: string
+                title:
+                  type: string
+                description:
+                  type: string
+                location:
+                  type: string
+                startTime:
+                  type: string
+                  format: date-time
+                endTime:
+                  type: string
+                  format: date-time
+                isAllDay:
+                  type: boolean
+                availability:
+                  type: string
+                  enum: [busy, free]
+                timezone:
+                  type: string
+      responses:
+        "201":
+          description: Event created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KeeperEvent"
+        "401":
+          description: Unauthorized
+
+  /api/v1/events/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: v1GetEvent
+      summary: Get a single event
+      tags: [v1 - Events]
+      security:
+        - bearerToken: []
+      responses:
+        "200":
+          description: Event details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KeeperEvent"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Event not found
+    patch:
+      operationId: v1UpdateEvent
+      summary: Update an event or set RSVP status
+      tags: [v1 - Events]
+      security:
+        - bearerToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                location:
+                  type: string
+                startTime:
+                  type: string
+                  format: date-time
+                endTime:
+                  type: string
+                  format: date-time
+                isAllDay:
+                  type: boolean
+                availability:
+                  type: string
+                  enum: [busy, free]
+                timezone:
+                  type: string
+                rsvpStatus:
+                  type: string
+                  enum: [accepted, declined, tentative]
+      responses:
+        "200":
+          description: Event updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KeeperEvent"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Event not found
+    delete:
+      operationId: v1DeleteEvent
+      summary: Delete an event
+      tags: [v1 - Events]
+      security:
+        - bearerToken: []
+      responses:
+        "204":
+          description: Event deleted
+        "401":
+          description: Unauthorized
+        "404":
+          description: Event not found
+
+  /api/v1/ical:
+    get:
+      operationId: v1GetIcalUrl
+      summary: Get iCal feed URL
+      tags: [v1 - iCal]
+      security:
+        - bearerToken: []
+      responses:
+        "200":
+          description: iCal feed URL
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url]
+                properties:
+                  url:
+                    type: string
+        "401":
+          description: Unauthorized
+
+tags:
+  - name: Health
+  - name: Entitlements
+  - name: Accounts
+  - name: Sources
+  - name: Sources - Google
+  - name: Sources - Outlook
+  - name: Sources - CalDAV
+  - name: ICS Sources
+  - name: Destinations
+  - name: Destinations - CalDAV
+  - name: Mappings
+  - name: Events
+  - name: Sync
+  - name: iCal Feed
+  - name: API Tokens
+  - name: WebSocket
+  - name: Feedback
+  - name: Webhooks
+  - name: v1 - Accounts
+  - name: v1 - Calendars
+  - name: v1 - Events
+  - name: v1 - iCal
