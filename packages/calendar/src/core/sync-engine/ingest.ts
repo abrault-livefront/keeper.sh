@@ -1,5 +1,5 @@
 import type { SourceEvent } from "../types";
-import { getOAuthSyncWindow } from "../oauth/sync-window";
+import { SYNC_LOOKAHEAD_MONTHS, getOAuthSyncWindow } from "../oauth/sync-window";
 import {
   assertSourceRecurrenceMaterializationWithinBudget,
   RecurrenceMaterializationLimitError,
@@ -30,7 +30,7 @@ interface IngestionChanges {
   deletes: string[];
   snapshot?: CalendarSnapshotChange;
   syncToken?: string | null;
-}
+}git
 
 interface CalendarSnapshotChange {
   contentHash: string;
@@ -84,7 +84,6 @@ interface IngestionResult {
 }
 
 const EMPTY_RESULT: IngestionResult = { eventsAdded: 0, eventsRemoved: 0 };
-const RECURRENCE_VALIDATION_YEARS = 2;
 
 const ingestSource = async (options: IngestSourceOptions): Promise<IngestionResult> => {
   const { calendarId, fetchEvents, isCurrent, onIngestEvent } = options;
@@ -102,7 +101,7 @@ const ingestSource = async (options: IngestSourceOptions): Promise<IngestionResu
     const withPersistenceTransaction = resolvePersistenceTransaction(options);
     const fetchResult = await fetchEvents();
     wideEvent["source_events.count"] = fetchResult.events.length;
-    const recurrenceValidationWindow = getOAuthSyncWindow(RECURRENCE_VALIDATION_YEARS);
+    const recurrenceValidationWindow = getOAuthSyncWindow(SYNC_LOOKAHEAD_MONTHS);
 
     assertSourceRecurrenceMaterializationWithinBudget(
       calendarId,

@@ -99,6 +99,7 @@ describe("createOutlookSyncProvider", () => {
     const abortError = new Error("job deadline exceeded");
 
     const pending = provider.listRemoteEvents({
+      timeMax: new Date("2028-07-10T00:00:00.000Z"),
       timeMin: new Date("2026-07-10T00:00:00.000Z"),
     });
     await vi.waitFor(() => { expect(fetch).toHaveBeenCalledOnce(); });
@@ -113,6 +114,7 @@ describe("createOutlookSyncProvider", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await createProvider().listRemoteEvents({
+      timeMax: new Date("2028-07-10T00:00:00.000Z"),
       timeMin: new Date("2026-07-10T00:00:00.000Z"),
     });
 
@@ -124,11 +126,12 @@ describe("createOutlookSyncProvider", () => {
     });
     const requestUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
     expect(requestUrl.searchParams.get("$filter")).toContain("end/dateTime ge");
-    expect(requestUrl.searchParams.get("$filter")).not.toContain("start/dateTime le");
+    expect(requestUrl.searchParams.get("$filter")).toContain("start/dateTime le");
   });
 
-  it("pages through far-future Keeper events without a future cutoff", async () => {
+  it("pages through far-future Keeper events up to a future cutoff", async () => {
     const timeMin = new Date("2026-07-10T00:00:00.000Z");
+    const timeMax = new Date("2028-07-10T00:00:00.000Z");
     const nextLink = "https://graph.microsoft.com/v1.0/me/events?$skiptoken=page-2";
     const eventTime = {
       end: { dateTime: "2040-03-15T10:00:00.000Z", timeZone: "UTC" },
@@ -159,7 +162,7 @@ describe("createOutlookSyncProvider", () => {
       }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const remoteEvents = await createProvider().listRemoteEvents({ timeMin });
+    const remoteEvents = await createProvider().listRemoteEvents({ timeMax, timeMin });
 
     expect(remoteEvents.map((event) => ({
       deleteId: event.deleteId,
@@ -174,7 +177,7 @@ describe("createOutlookSyncProvider", () => {
     const filter = initialUrl.searchParams.get("$filter") ?? "";
     expect(filter).not.toContain("categories");
     expect(filter).toContain(`end/dateTime ge '${timeMin.toISOString()}'`);
-    expect(filter).not.toContain("start/dateTime le");
+    expect(filter).toContain(`start/dateTime le '${timeMax.toISOString()}'`);
     expect(String(fetchMock.mock.calls[1]?.[0])).toBe(nextLink);
   });
 
@@ -192,6 +195,7 @@ describe("createOutlookSyncProvider", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const [event] = await createProvider().listRemoteEvents({
+      timeMax: new Date("2028-03-01T00:00:00.000Z"),
       timeMin: new Date("2026-03-01T00:00:00.000Z"),
     });
 

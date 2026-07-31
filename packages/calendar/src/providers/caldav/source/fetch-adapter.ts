@@ -5,8 +5,7 @@ import { isKeeperEvent } from "../../../core/events/identity";
 import { CalDAVClient } from "../shared/client";
 import { parseICalCalendarsToRemoteEvents } from "../shared/ics";
 import { getCalDAVSyncWindow } from "../shared/sync-window";
-
-const YEARS_UNTIL_FUTURE = 2;
+import { SYNC_LOOKAHEAD_MONTHS } from "../../../core/oauth/sync-window";
 
 interface CalDAVSourceFetcherConfig {
   authMethod?: "basic" | "digest";
@@ -29,7 +28,7 @@ const createCalDAVSourceFetcher = (config: CalDAVSourceFetcherConfig): CalDAVSou
   }, config.safeFetchOptions);
 
   const fetchEvents = async (): Promise<FetchEventsResult> => {
-    const syncWindow = getCalDAVSyncWindow(YEARS_UNTIL_FUTURE);
+    const syncWindow = getCalDAVSyncWindow(SYNC_LOOKAHEAD_MONTHS);
     const calendarUrl = await client.resolveCalendarUrl(config.calendarUrl);
 
     const objects = await client.fetchCalendarObjects({

@@ -1,10 +1,9 @@
 import type { FetchEventsResult } from "../../../core/sync-engine/ingest";
 import { encodeStoredSyncToken, resolveSyncTokenForWindow } from "../../../core/oauth/sync-token";
-import { getOAuthSyncTokenVersion, getOAuthSyncWindow } from "../../../core/oauth/sync-window";
+import { SYNC_LOOKAHEAD_MONTHS, getOAuthSyncTokenVersion, getOAuthSyncWindow } from "../../../core/oauth/sync-window";
 import { filterSourceEventsToSyncWindow } from "../../../core/source/sync-diagnostics";
 import { fetchCalendarEvents, parseOutlookEvents } from "./utils/fetch-events";
 
-const YEARS_UNTIL_FUTURE = 2;
 const OUTLOOK_ADAPTER_VERSION = 1;
 
 interface OutlookSourceFetcherConfig {
@@ -26,7 +25,7 @@ const createOutlookSourceFetcher = (config: OutlookSourceFetcherConfig): Outlook
       calendarId: config.externalCalendarId,
       signal: config.signal,
     };
-    const syncWindow = getOAuthSyncWindow(YEARS_UNTIL_FUTURE);
+    const syncWindow = getOAuthSyncWindow(SYNC_LOOKAHEAD_MONTHS);
     const syncTokenVersion = getOAuthSyncTokenVersion(
       OUTLOOK_ADAPTER_VERSION,
       new Date(),

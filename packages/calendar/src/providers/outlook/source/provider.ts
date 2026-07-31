@@ -15,7 +15,7 @@ import { OAuthSourceProvider, type ProcessEventsOptions } from "../../../core/oa
 import type { FetchEventsResult as BaseFetchEventsResult } from "../../../core/oauth/source-provider";
 import { createOAuthSourceProvider, type SourceProvider } from "../../../core/oauth/create-source-provider";
 import { encodeStoredSyncToken, resolveSyncTokenForWindow } from "../../../core/oauth/sync-token";
-import { getOAuthSyncTokenVersion, getOAuthSyncWindow } from "../../../core/oauth/sync-window";
+import { SYNC_LOOKAHEAD_MONTHS, getOAuthSyncTokenVersion, getOAuthSyncWindow } from "../../../core/oauth/sync-window";
 import type { OAuthTokenProvider } from "../../../core/oauth/token-provider";
 import type { RefreshLockStore } from "../../../core/oauth/refresh-coordinator";
 import type { OAuthSourceConfig, SourceEvent, SourceSyncResult } from "../../../core/types";
@@ -33,8 +33,6 @@ import { fetchCalendarEvents, fetchCalendarName, parseOutlookEvents } from "./ut
 const OUTLOOK_PROVIDER_ID = "outlook";
 const EMPTY_COUNT = 0;
 const OUTLOOK_ADAPTER_VERSION = 1;
-
-const YEARS_UNTIL_FUTURE = 2;
 
 interface OutlookSourceConfig extends OAuthSourceConfig {
   originalName: string | null;
@@ -75,7 +73,7 @@ class OutlookSourceProvider extends OAuthSourceProvider<OutlookSourceConfig> {
     }
 
     if (syncTokenResolution.syncToken === null) {
-      const syncWindow = getOAuthSyncWindow(YEARS_UNTIL_FUTURE);
+      const syncWindow = getOAuthSyncWindow(SYNC_LOOKAHEAD_MONTHS);
       fetchOptions.timeMin = syncWindow.timeMin;
       fetchOptions.timeMax = syncWindow.timeMax;
     } else {
@@ -117,7 +115,7 @@ class OutlookSourceProvider extends OAuthSourceProvider<OutlookSourceConfig> {
       nextSyncToken,
       syncTokenVersion,
     } = options;
-    const syncWindow = getOAuthSyncWindow(YEARS_UNTIL_FUTURE);
+    const syncWindow = getOAuthSyncWindow(SYNC_LOOKAHEAD_MONTHS);
     const {
       events: eventsInWindow,
       filteredCount: eventsFilteredOutOfWindow,

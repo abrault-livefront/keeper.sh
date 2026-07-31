@@ -100,6 +100,7 @@ describe("createCalDAVSyncProvider", () => {
     }]);
 
     const remoteEvents = await createProvider().listRemoteEvents({
+      timeMax: new Date("2041-01-01T00:00:00.000Z"),
       timeMin: new Date("2026-07-10T00:00:00.000Z"),
     });
 
@@ -128,6 +129,7 @@ describe("createCalDAVSyncProvider", () => {
     }]);
 
     const remoteEvents = await createProvider().listRemoteEvents({
+      timeMax: new Date("2028-01-01T00:00:00.000Z"),
       timeMin: new Date("2026-01-01T00:00:00.000Z"),
     });
 
@@ -150,6 +152,7 @@ describe("createCalDAVSyncProvider", () => {
     }]);
 
     const remoteEvents = await createProvider().listRemoteEvents({
+      timeMax: new Date("2028-01-01T00:00:00.000Z"),
       timeMin: new Date("2026-01-01T00:00:00.000Z"),
     });
 
@@ -171,6 +174,7 @@ describe("createCalDAVSyncProvider", () => {
     }]);
 
     const remoteEvents = await createProvider().listRemoteEvents({
+      timeMax: new Date("2028-01-01T00:00:00.000Z"),
       timeMin: new Date("2026-01-01T00:00:00.000Z"),
     });
 
@@ -187,6 +191,7 @@ describe("createCalDAVSyncProvider", () => {
     }]);
 
     await expect(createProvider().listRemoteEvents({
+      timeMax: new Date("2028-01-01T00:00:00.000Z"),
       timeMin: new Date("2026-01-01T00:00:00.000Z"),
     })).rejects.toThrow();
   });

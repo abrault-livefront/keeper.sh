@@ -40,6 +40,7 @@ export {
 } from "./core/oauth/source-provider";
 export {
   OAUTH_SYNC_WINDOW_VERSION,
+  SYNC_LOOKAHEAD_MONTHS,
   getOAuthSyncTokenVersion,
   getOAuthSyncWindow,
   getOAuthSyncWindowStart,

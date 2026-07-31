@@ -11,6 +11,21 @@ const OAUTH_SYNC_WINDOW_VERSION = 4;
 const OAUTH_SYNC_LOOKBACK_MS = OAUTH_SYNC_LOOKBACK_DAYS * MS_PER_DAY;
 const OAUTH_SYNC_TOKEN_REFRESH_MS = 7 * MS_PER_DAY;
 
+const DEFAULT_SYNC_LOOKAHEAD_MONTHS = 24;
+
+const resolveSyncLookaheadMonths = (rawValue: string | undefined): number => {
+  if (!rawValue) {
+    return DEFAULT_SYNC_LOOKAHEAD_MONTHS;
+  }
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return DEFAULT_SYNC_LOOKAHEAD_MONTHS;
+  }
+  return parsed;
+};
+
+const SYNC_LOOKAHEAD_MONTHS = resolveSyncLookaheadMonths(process.env.SYNC_LOOKAHEAD_MONTHS);
+
 const getDeterministicRefreshOffset = (calendarKey: string): number => {
   if (calendarKey.length === 0) {
     return 0;
@@ -41,20 +56,22 @@ const getOAuthSyncWindowStart = (startOfToday: Date = getStartOfToday()): Date =
   new Date(startOfToday.getTime() - OAUTH_SYNC_LOOKBACK_MS);
 
 const getOAuthSyncWindow = (
-  yearsUntilFuture: number,
+  monthsUntilFuture: number,
   startOfToday: Date = getStartOfToday(),
 ): OAuthSyncWindow => {
   const timeMin = getOAuthSyncWindowStart(startOfToday);
   const timeMax = new Date(startOfToday);
-  timeMax.setFullYear(timeMax.getFullYear() + yearsUntilFuture);
+  timeMax.setMonth(timeMax.getMonth() + monthsUntilFuture);
   return { timeMax, timeMin };
 };
 
 export {
   OAUTH_SYNC_WINDOW_VERSION,
+  SYNC_LOOKAHEAD_MONTHS,
   getDeterministicRefreshOffset,
   getOAuthSyncTokenVersion,
   getOAuthSyncWindowStart,
   getOAuthSyncWindow,
+  resolveSyncLookaheadMonths,
 };
 export type { OAuthSyncWindow };

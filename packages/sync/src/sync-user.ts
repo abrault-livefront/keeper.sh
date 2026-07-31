@@ -9,6 +9,7 @@ import {
   getMappedSourceCalendarIds,
   withSourceIngestLocks,
   getOAuthSyncWindow,
+  SYNC_LOOKAHEAD_MONTHS,
 } from "@keeper.sh/calendar";
 import type {
   EventMapping,
@@ -31,7 +32,6 @@ import type { OAuthConfig } from "./resolve-provider";
 import { createSyncLock, isCalendarInvalidated } from "./sync-lock";
 
 const GOOGLE_REQUESTS_PER_MINUTE = 500;
-const DESTINATION_RECURRENCE_YEARS = 2;
 
 const resetDestinationBackoff = async (
   database: BunSQLDatabase,
@@ -279,7 +279,7 @@ const syncDestinationsForUser = async (
         database,
         destination.calendarId,
       );
-      const reconciliationWindow = getOAuthSyncWindow(DESTINATION_RECURRENCE_YEARS);
+      const reconciliationWindow = getOAuthSyncWindow(SYNC_LOOKAHEAD_MONTHS);
       let eventReadDiagnostics: DestinationEventReadDiagnostics = {
         candidateEventStateCount: 0,
         excludedBySyncPolicyCount: 0,
@@ -297,6 +297,7 @@ const syncDestinationsForUser = async (
           try {
             return await providerRef.listRemoteEvents({
               timeMin: reconciliationWindow.timeMin,
+              timeMax: reconciliationWindow.timeMax,
             });
           } finally {
             remoteReadDurationMs = roundDuration(performance.now() - startedAt);

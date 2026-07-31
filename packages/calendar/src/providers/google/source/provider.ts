@@ -15,7 +15,7 @@ import { OAuthSourceProvider, type ProcessEventsOptions } from "../../../core/oa
 import type { FetchEventsResult as BaseFetchEventsResult } from "../../../core/oauth/source-provider";
 import { createOAuthSourceProvider, type SourceProvider } from "../../../core/oauth/create-source-provider";
 import { encodeStoredSyncToken, resolveSyncTokenForWindow } from "../../../core/oauth/sync-token";
-import { getOAuthSyncTokenVersion, getOAuthSyncWindow } from "../../../core/oauth/sync-window";
+import { SYNC_LOOKAHEAD_MONTHS, getOAuthSyncTokenVersion, getOAuthSyncWindow } from "../../../core/oauth/sync-window";
 import type { OAuthTokenProvider } from "../../../core/oauth/token-provider";
 import type { RefreshLockStore } from "../../../core/oauth/refresh-coordinator";
 import type { OAuthSourceConfig, SourceEvent, SourceSyncResult } from "../../../core/types";
@@ -32,8 +32,6 @@ import { fetchCalendarEvents, parseGoogleEvents } from "./utils/fetch-events";
 
 const GOOGLE_PROVIDER_ID = "google";
 const EMPTY_COUNT = 0;
-
-const YEARS_UNTIL_FUTURE = 2;
 
 interface GoogleSourceConfig extends OAuthSourceConfig {
   originalName: string | null;
@@ -73,7 +71,7 @@ class GoogleCalendarSourceProvider extends OAuthSourceProvider<GoogleSourceConfi
     }
 
     if (syncTokenResolution.syncToken === null) {
-      const syncWindow = getOAuthSyncWindow(YEARS_UNTIL_FUTURE);
+      const syncWindow = getOAuthSyncWindow(SYNC_LOOKAHEAD_MONTHS);
       fetchOptions.timeMin = syncWindow.timeMin;
       fetchOptions.timeMax = syncWindow.timeMax;
     } else {
@@ -115,7 +113,7 @@ class GoogleCalendarSourceProvider extends OAuthSourceProvider<GoogleSourceConfi
       nextSyncToken,
       syncTokenVersion,
     } = options;
-    const syncWindow = getOAuthSyncWindow(YEARS_UNTIL_FUTURE);
+    const syncWindow = getOAuthSyncWindow(SYNC_LOOKAHEAD_MONTHS);
     const {
       events: eventsInWindow,
       filteredCount: eventsFilteredOutOfWindow,

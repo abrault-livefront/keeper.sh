@@ -230,7 +230,11 @@ const createCalDAVSyncProvider = (config: CalDAVSyncProviderConfig) => {
       { rejectUnsupportedRecurrenceDates: false },
     );
     for (const parsed of parsedEvents) {
-      if (!isKeeperEvent(parsed.uid) || parsed.endTime < options.timeMin) {
+      if (
+        !isKeeperEvent(parsed.uid) ||
+        parsed.endTime < options.timeMin ||
+        parsed.startTime > options.timeMax
+      ) {
         continue;
       }
 

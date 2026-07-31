@@ -28,9 +28,9 @@ import type {
   CalDAVSourceSyncResult,
 } from "../types";
 import { withSourceIngestLock } from "../../../core/source/ingest-lock";
+import { SYNC_LOOKAHEAD_MONTHS } from "../../../core/oauth/sync-window";
 
 const EMPTY_COUNT = 0;
-const YEARS_UNTIL_FUTURE = 2;
 
 const DEFAULT_CALDAV_OPTIONS: CalDAVProviderOptions = {
   providerId: "caldav",
@@ -61,7 +61,7 @@ const createCalDAVSourceProvider = (
       serverUrl: account.serverUrl,
     });
 
-    const syncWindow = getCalDAVSyncWindow(YEARS_UNTIL_FUTURE);
+    const syncWindow = getCalDAVSyncWindow(SYNC_LOOKAHEAD_MONTHS);
 
     const calendarUrl = await client.resolveCalendarUrl(account.calendarUrl);
 

@@ -269,6 +269,35 @@ describe("fetchCalendarEvents", () => {
       expect(error.message).toContain("Failed to fetch events: 401");
     }
   });
+
+  it("retries a timed-out request and succeeds on the next attempt", async () => {
+    let callCount = 0;
+    const timeoutFetch = (async (input: Request | URL | string) => {
+      callCount += 1;
+      if (callCount === 1) {
+        const abortError = new Error("The operation was aborted.");
+        abortError.name = "AbortError";
+        throw abortError;
+      }
+      return createJsonResponse({
+        items: [{ iCalUID: "ext-uid-1", id: "event-1", status: "confirmed" }],
+        nextSyncToken: "sync-token-1",
+      });
+    }) as typeof fetch;
+    timeoutFetch.preconnect = originalFetch.preconnect;
+    globalThis.fetch = timeoutFetch;
+
+    const fetchResult = await fetchCalendarEvents({
+      accessToken: "token",
+      calendarId: "calendar-id",
+      timeMax: new Date("2026-02-01T00:00:00.000Z"),
+      timeMin: new Date("2026-01-01T00:00:00.000Z"),
+    });
+
+    expect(callCount).toBe(2);
+    expect(fetchResult.fullSyncRequired).toBe(false);
+    expect(fetchResult.events.map((event) => event.iCalUID)).toEqual(["ext-uid-1"]);
+  });
 });
 
 describe("parseGoogleEvents", () => {

@@ -52,11 +52,15 @@ class EventsFetchError extends Error {
   }
 }
 
-const REQUEST_TIMEOUT_MS = 15_000;
+const REQUEST_TIMEOUT_MS = 30_000;
+const TIMEOUT_STATUS = 408;
 
 const isRequestTimeoutError = (error: unknown): boolean =>
   error instanceof Error
   && (error.name === "AbortError" || error.name === "TimeoutError");
+
+const isFetchTimeoutError = (error: unknown): boolean =>
+  error instanceof EventsFetchError && error.status === TIMEOUT_STATUS;
 
 interface PageFetchOptions {
   accessToken: string;
@@ -136,7 +140,7 @@ const fetchEventsPage = async (
     if (timeout.isTimeout() || isRequestTimeoutError(error) && !signal?.aborted) {
       throw new EventsFetchError(
         `Failed to fetch events: timeout after ${REQUEST_TIMEOUT_MS}ms`,
-        408,
+        TIMEOUT_STATUS,
         false,
       );
     }
@@ -202,7 +206,8 @@ const fetchCalendarEvents = async (options: FetchEventsOptions): Promise<FetchEv
       {
         signal,
         shouldRetry: (error) =>
-          error instanceof EventsFetchError && isRateLimitApiError(error.status, error.apiError),
+          isFetchTimeoutError(error)
+          || (error instanceof EventsFetchError && isRateLimitApiError(error.status, error.apiError)),
       },
     );
 

@@ -6,10 +6,10 @@ interface CalDAVSyncWindow {
 }
 
 const getCalDAVSyncWindow = (
-  yearsUntilFuture: number,
+  monthsUntilFuture: number,
   startOfToday?: Date,
 ): CalDAVSyncWindow => {
-  const oauthSyncWindow = getOAuthSyncWindow(yearsUntilFuture, startOfToday);
+  const oauthSyncWindow = getOAuthSyncWindow(monthsUntilFuture, startOfToday);
   return {
     end: oauthSyncWindow.timeMax,
     start: oauthSyncWindow.timeMin,

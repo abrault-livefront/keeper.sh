@@ -127,6 +127,7 @@ type SyncOperation =
 
 interface ListRemoteEventsOptions {
   timeMin: Date;
+  timeMax: Date;
 }
 
 type BroadcastSyncStatus = (

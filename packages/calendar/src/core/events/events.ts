@@ -11,13 +11,12 @@ import type {
   SourceEventType,
   SyncableEvent,
 } from "../types";
-import { getOAuthSyncWindow } from "../oauth/sync-window";
+import { SYNC_LOOKAHEAD_MONTHS, getOAuthSyncWindow } from "../oauth/sync-window";
 import type { OAuthSyncWindow } from "../oauth/sync-window";
 import { parseStoredRecurrenceForMaterialization } from "./stored-recurrence";
 import { materializeRecurrenceEvents } from "./recurrence-materializer";
 
 const EMPTY_SOURCES_COUNT = 0;
-const YEARS_UNTIL_FUTURE = 2;
 
 interface DestinationEventReadDiagnostics {
   candidateEventStateCount: number;
@@ -155,7 +154,7 @@ const getMappedSourceCalendarIds = async (
 const getEventsForCalendarsWithDiagnostics = async (
   database: BunSQLClient,
   calendarIds: string[],
-  syncWindow: OAuthSyncWindow = getOAuthSyncWindow(YEARS_UNTIL_FUTURE),
+  syncWindow: OAuthSyncWindow = getOAuthSyncWindow(SYNC_LOOKAHEAD_MONTHS),
 ): Promise<DestinationEventReadResult> => {
   if (calendarIds.length === EMPTY_SOURCES_COUNT) {
     return {
@@ -290,7 +289,7 @@ const getEventsForCalendarsWithDiagnostics = async (
 const getEventsForCalendars = async (
   database: BunSQLClient,
   calendarIds: string[],
-  syncWindow: OAuthSyncWindow = getOAuthSyncWindow(YEARS_UNTIL_FUTURE),
+  syncWindow: OAuthSyncWindow = getOAuthSyncWindow(SYNC_LOOKAHEAD_MONTHS),
 ): Promise<MaterializedSyncableEvent[]> => {
   const result = await getEventsForCalendarsWithDiagnostics(database, calendarIds, syncWindow);
   return result.events;
@@ -299,7 +298,7 @@ const getEventsForCalendars = async (
 const getEventsForDestination = async (
   database: BunSQLClient,
   destinationCalendarId: string,
-  syncWindow: OAuthSyncWindow = getOAuthSyncWindow(YEARS_UNTIL_FUTURE),
+  syncWindow: OAuthSyncWindow = getOAuthSyncWindow(SYNC_LOOKAHEAD_MONTHS),
 ): Promise<MaterializedSyncableEvent[]> => {
   const sourceCalendarIds = await getMappedSourceCalendarIds(database, destinationCalendarId);
 
