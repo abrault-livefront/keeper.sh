@@ -15,8 +15,8 @@ components:
     sessionAuth:
       type: apiKey
       in: cookie
-      name: keeper-session
-      description: Session cookie set by Better Auth after sign-in.
+      name: better-auth.session_token
+      description: HttpOnly session cookie set by Better Auth after sign-in.
     bearerToken:
       type: http
       scheme: bearer
@@ -301,7 +301,460 @@ components:
         success:
           type: boolean
 
+    AuthSession:
+      type: object
+      properties:
+        id:
+          type: string
+        token:
+          type: string
+        userId:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AuthUser:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        emailVerified:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AuthSessionResponse:
+      type: object
+      properties:
+        session:
+          oneOf:
+            - $ref: "#/components/schemas/AuthSession"
+            - type: "null"
+        user:
+          oneOf:
+            - $ref: "#/components/schemas/AuthUser"
+            - type: "null"
+
 paths:
+  # ---------------------------------------------------------------------------
+  # Auth
+  # ---------------------------------------------------------------------------
+  /api/auth/capabilities:
+    get:
+      operationId: getAuthCapabilities
+      summary: Get server auth capabilities
+      description: Returns which authentication methods are available. Call this first to determine the correct sign-in flow.
+      tags: [Auth]
+      responses:
+        "200":
+          description: Auth capabilities
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - commercialMode
+                  - credentialMode
+                  - requiresEmailVerification
+                  - socialProviders
+                  - supportsChangePassword
+                  - supportsPasskeys
+                  - supportsPasswordReset
+                properties:
+                  commercialMode:
+                    type: boolean
+                    description: When true, email/password auth is used instead of username/password
+                  credentialMode:
+                    type: string
+                    enum: [username, email]
+                  requiresEmailVerification:
+                    type: boolean
+                  socialProviders:
+                    type: object
+                    properties:
+                      google:
+                        type: boolean
+                      microsoft:
+                        type: boolean
+                  supportsChangePassword:
+                    type: boolean
+                  supportsPasskeys:
+                    type: boolean
+                  supportsPasswordReset:
+                    type: boolean
+
+  /api/auth/username-only/sign-up:
+    post:
+      operationId: usernameSignUp
+      summary: Sign up with username and password
+      description: Active when `commercialMode` is false (self-hosted). Creates an account and starts a session.
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                  minLength: 3
+                  maxLength: 32
+                  pattern: '^[a-zA-Z0-9._-]+$'
+                password:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+                name:
+                  type: string
+                  description: Display name; defaults to username if omitted
+      responses:
+        "200":
+          description: Account created and session started
+          headers:
+            Set-Cookie:
+              description: Sets `better-auth.session_token` (HttpOnly) and `keeper.has_session=1`
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSessionResponse"
+        "400":
+          description: Username already taken
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/auth/username-only/sign-in:
+    post:
+      operationId: usernameSignIn
+      summary: Sign in with username and password
+      description: Active when `commercialMode` is false (self-hosted).
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Signed in
+          headers:
+            Set-Cookie:
+              description: Sets `better-auth.session_token` (HttpOnly) and `keeper.has_session=1`
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSessionResponse"
+        "401":
+          description: Invalid username or password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/auth/sign-up/email:
+    post:
+      operationId: emailSignUp
+      summary: Sign up with email and password
+      description: Active when `commercialMode` is true. Sends a verification email; session is not active until verified.
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, name]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                name:
+                  type: string
+      responses:
+        "200":
+          description: Account created; verification email sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSessionResponse"
+
+  /api/auth/sign-in/email:
+    post:
+      operationId: emailSignIn
+      summary: Sign in with email and password
+      description: Active when `commercialMode` is true.
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Signed in
+          headers:
+            Set-Cookie:
+              description: Sets `better-auth.session_token` (HttpOnly) and `keeper.has_session=1`
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSessionResponse"
+        "401":
+          description: Invalid credentials
+
+  /api/auth/sign-in/social:
+    post:
+      operationId: socialSignIn
+      summary: Initiate social OAuth sign-in
+      description: Active when the relevant provider is enabled (check `socialProviders` in capabilities).
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider, callbackURL]
+              properties:
+                provider:
+                  type: string
+                  enum: [google, microsoft]
+                callbackURL:
+                  type: string
+                  description: URL to redirect to after the OAuth flow completes
+      responses:
+        "302":
+          description: Redirect to provider authorization URL
+
+  /api/auth/sign-out:
+    post:
+      operationId: signOut
+      summary: Sign out
+      description: Invalidates the current session and clears all session cookies.
+      tags: [Auth]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: Signed out; session cookies cleared
+
+  /api/auth/get-session:
+    get:
+      operationId: getSession
+      summary: Get current session
+      description: Returns the current session and user. If no valid session exists, clears stale cookies and returns null values.
+      tags: [Auth]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: Current session (may contain null values if no active session)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSessionResponse"
+
+  /api/auth/list-sessions:
+    get:
+      operationId: listSessions
+      summary: List active sessions
+      tags: [Auth]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: All active sessions for the authenticated user
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuthSession"
+
+  /api/auth/revoke-session:
+    post:
+      operationId: revokeSession
+      summary: Revoke a specific session
+      tags: [Auth]
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+      responses:
+        "200":
+          description: Session revoked
+
+  /api/auth/revoke-other-sessions:
+    post:
+      operationId: revokeOtherSessions
+      summary: Revoke all other sessions
+      description: Revokes all sessions except the current one.
+      tags: [Auth]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: Other sessions revoked
+
+  /api/auth/change-password:
+    post:
+      operationId: changePassword
+      summary: Change password
+      tags: [Auth]
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword:
+                  type: string
+                newPassword:
+                  type: string
+      responses:
+        "200":
+          description: Password changed
+        "401":
+          description: Current password incorrect
+
+  /api/auth/forget-password:
+    post:
+      operationId: forgetPassword
+      summary: Request password reset email
+      description: Active when `supportsPasswordReset` is true in capabilities.
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        "200":
+          description: Reset email sent if the address exists
+
+  /api/auth/reset-password:
+    post:
+      operationId: resetPassword
+      summary: Reset password with token
+      description: Active when `supportsPasswordReset` is true in capabilities.
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, newPassword]
+              properties:
+                token:
+                  type: string
+                newPassword:
+                  type: string
+      responses:
+        "200":
+          description: Password reset
+        "400":
+          description: Invalid or expired token
+
+  /api/auth/delete-user:
+    post:
+      operationId: deleteUser
+      summary: Delete authenticated user
+      description: Permanently deletes the user account and all associated data.
+      tags: [Auth]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: User deleted
+
+  /api/auth/passkey/register:
+    post:
+      operationId: registerPasskey
+      summary: Register a passkey
+      description: Active when `supportsPasskeys` is true in capabilities. Requires an active session.
+      tags: [Auth]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: Passkey registered
+
+  /api/auth/passkey/authenticate:
+    post:
+      operationId: authenticatePasskey
+      summary: Authenticate with a passkey
+      description: Active when `supportsPasskeys` is true in capabilities. No existing session required.
+      tags: [Auth]
+      responses:
+        "200":
+          description: Authenticated; session cookies set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSessionResponse"
+
   # ---------------------------------------------------------------------------
   # Health
   # ---------------------------------------------------------------------------
@@ -1978,6 +2431,7 @@ paths:
           description: Unauthorized
 
 tags:
+  - name: Auth
   - name: Health
   - name: Entitlements
   - name: Accounts

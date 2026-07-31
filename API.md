@@ -13,7 +13,13 @@ The keeper.sh API is a Bun HTTP server using Next.js-style filesystem routing. I
 
 ### Session Auth (Internal API)
 
-Most internal endpoints require a valid session cookie (`keeper-session`) set by Better Auth after sign-in. Requests without a valid session return `401 Unauthorized`.
+Most internal endpoints require a valid session cookie set by Better Auth after sign-in. Requests without a valid session return `401 Unauthorized`.
+
+Two cookies are set on every successful sign-in:
+- `better-auth.session_token` — HttpOnly, SameSite=Lax. The actual session credential used by the API.
+- `keeper.has_session=1` — non-HttpOnly, SameSite=Lax. A JS-readable flag that indicates a session exists without exposing the token.
+
+On sign-out (or when a session is found to be invalid), both cookies are cleared.
 
 ### Bearer Token Auth (Public API v1)
 
@@ -22,6 +28,258 @@ The v1 public API uses API tokens. Create a token via `POST /api/tokens` (requir
 ```
 Authorization: Bearer <token>
 ```
+
+---
+
+## Auth Endpoints
+
+Auth is handled by [Better Auth](https://www.better-auth.com/) at `/api/auth/**`. The exact endpoints available depend on how the server is configured.
+
+#### `GET /api/auth/capabilities`
+
+Returns the server's auth capabilities. Call this first to discover which sign-in methods are available.
+
+**Response `200`**
+```json
+{
+  "commercialMode": false,
+  "credentialMode": "username",
+  "requiresEmailVerification": false,
+  "socialProviders": {
+    "google": true,
+    "microsoft": false
+  },
+  "supportsChangePassword": true,
+  "supportsPasskeys": false,
+  "supportsPasswordReset": false
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `commercialMode` | When `true`, email/password auth is used instead of username/password |
+| `credentialMode` | `"username"` (self-hosted) or `"email"` (commercial) |
+| `requiresEmailVerification` | When `true`, email must be verified before the session is active |
+| `socialProviders` | Which OAuth providers are enabled |
+| `supportsPasskeys` | Whether WebAuthn passkey auth is available |
+| `supportsPasswordReset` | Whether forgot-password flow is available |
+
+---
+
+### Username / Password (self-hosted mode)
+
+Active when `commercialMode` is `false`.
+
+#### `POST /api/auth/username-only/sign-up`
+
+Creates a new account and starts a session.
+
+**Request body**
+```json
+{
+  "username": "string",
+  "password": "string",
+  "name": "string"
+}
+```
+
+| Field | Required | Constraints |
+|-------|----------|-------------|
+| `username` | yes | 3–32 chars, `/^[a-zA-Z0-9._-]+$/` |
+| `password` | yes | 8–128 chars |
+| `name` | no | Display name; defaults to username |
+
+**Response `200`**
+```json
+{
+  "session": {
+    "id": "string",
+    "token": "string",
+    "userId": "string",
+    "expiresAt": "2024-01-01T00:00:00.000Z",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  },
+  "user": {
+    "id": "string",
+    "username": "string",
+    "name": "string",
+    "email": "string",
+    "emailVerified": true,
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  }
+}
+```
+
+Sets `better-auth.session_token` and `keeper.has_session` cookies.
+
+**Errors**
+- `400` — `{ "message": "username already taken" }`
+
+#### `POST /api/auth/username-only/sign-in`
+
+Signs in with username and password.
+
+**Request body**
+```json
+{
+  "username": "string",
+  "password": "string"
+}
+```
+
+**Response `200`** — same shape as sign-up response. Sets session cookies.
+
+**Errors**
+- `401` — `{ "message": "invalid username or password" }` (same message for all failure cases to prevent enumeration)
+
+---
+
+### Email / Password (commercial mode)
+
+Active when `commercialMode` is `true`.
+
+#### `POST /api/auth/sign-up/email`
+
+Creates a new account. Sends a verification email — the session is not active until the email is verified.
+
+**Request body**
+```json
+{
+  "email": "string",
+  "password": "string",
+  "name": "string"
+}
+```
+
+#### `POST /api/auth/sign-in/email`
+
+Signs in with email and password.
+
+**Request body**
+```json
+{
+  "email": "string",
+  "password": "string"
+}
+```
+
+**Response `200`** — session + user JSON. Sets session cookies.
+
+#### `POST /api/auth/forget-password`
+
+Sends a password reset email.
+
+**Request body**
+```json
+{ "email": "string" }
+```
+
+#### `POST /api/auth/reset-password`
+
+Resets the password using a token from the reset email.
+
+**Request body**
+```json
+{
+  "token": "string",
+  "newPassword": "string"
+}
+```
+
+---
+
+### Social / OAuth Sign-In
+
+Active when the relevant provider credentials are configured (check `socialProviders` in `/api/auth/capabilities`).
+
+#### `POST /api/auth/sign-in/social`
+
+Initiates an OAuth flow for a social provider.
+
+**Request body**
+```json
+{
+  "provider": "google",
+  "callbackURL": "https://yourapp.com/dashboard"
+}
+```
+
+**Response** — redirects to the provider's OAuth authorization URL.
+
+After the OAuth flow completes, Better Auth handles the callback at:
+- `GET /api/auth/callback/google`
+- `GET /api/auth/callback/microsoft`
+
+These set session cookies and redirect to the `callbackURL`.
+
+---
+
+### Session Management
+
+All of the following require a valid `better-auth.session_token` cookie or `Authorization: Bearer <token>` header.
+
+#### `GET /api/auth/get-session` `🔒 session`
+
+Returns the current session and user, or `null` if no valid session exists. Clears stale cookies if the session is invalid.
+
+**Response `200`**
+```json
+{
+  "session": { /* Session object or null */ },
+  "user": { /* User object or null */ }
+}
+```
+
+#### `POST /api/auth/sign-out` `🔒 session`
+
+Invalidates the current session and clears all session cookies.
+
+#### `GET /api/auth/list-sessions` `🔒 session`
+
+Lists all active sessions for the authenticated user.
+
+#### `POST /api/auth/revoke-session` `🔒 session`
+
+Revokes a specific session.
+
+**Request body**
+```json
+{ "token": "string" }
+```
+
+#### `POST /api/auth/revoke-other-sessions` `🔒 session`
+
+Revokes all sessions except the current one.
+
+#### `POST /api/auth/change-password` `🔒 session`
+
+**Request body**
+```json
+{
+  "currentPassword": "string",
+  "newPassword": "string"
+}
+```
+
+#### `POST /api/auth/delete-user` `🔒 session`
+
+Permanently deletes the authenticated user and all associated data.
+
+---
+
+### Passkeys (commercial mode + passkey config)
+
+Active when `supportsPasskeys` is `true` in capabilities.
+
+#### `POST /api/auth/passkey/register` `🔒 session`
+
+Registers a new passkey for the authenticated user.
+
+#### `POST /api/auth/passkey/authenticate`
+
+Authenticates with a passkey (no existing session required).
 
 ---
 
