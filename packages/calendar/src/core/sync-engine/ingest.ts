@@ -30,7 +30,7 @@ interface IngestionChanges {
   deletes: string[];
   snapshot?: CalendarSnapshotChange;
   syncToken?: string | null;
-}git
+}
 
 interface CalendarSnapshotChange {
   contentHash: string;
